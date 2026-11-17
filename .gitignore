@@ -1,0 +1,17 @@
+# Backend
+backend/vendor/
+backend/cache/*
+!backend/cache/.gitkeep
+backend/logs/*
+!backend/logs/.gitkeep
+backend/database/database.sqlite
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Système
+.DS_Store
+Thumbs.db
+*.env
+.env.local

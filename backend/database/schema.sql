@@ -1,0 +1,14 @@
+-- database/schema.sql
+-- Script d'initialisation de la base de données
+--
+-- Tables à créer :
+--   students         : id, nom, prenom, promotion, annee
+--   courses          : id, intitule, coefficient
+--   grades           : id, student_id, course_id, note (FK vers students et courses)
+--
+-- Données de test (fixtures) à insérer pour la démonstration :
+--   - Au moins 10 étudiants répartis sur 2 promotions
+--   - Notes pour toutes les matières
+--
+-- Exécution : sqlite3 database.sqlite < schema.sql
+--             ou via l'interface PDO au premier démarrage.

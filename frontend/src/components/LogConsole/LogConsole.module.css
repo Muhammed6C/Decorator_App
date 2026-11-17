@@ -1,0 +1,7 @@
+/**
+ * LogConsole.module.css — Styles de la console de logs
+ *
+ * Fond sombre type terminal, texte en police monospace,
+ * défilement automatique vers le bas, couleurs distinctes
+ * par type de message (info, warn, success, timing).
+ */
