@@ -14,7 +14,12 @@ namespace App\Decorators;
  */
 abstract class AbstractStudentReportDecorator implements StudentReportInterface
 {
-    // protected StudentReportInterface $wrappee;
-    // __construct() reçoit le composant à décorer.
-    // getReport() délègue à $this->wrappee->getReport() avant d'enrichir.
+    public function __construct(protected StudentReportInterface $wrappee)
+    {
+    }
+
+    public function getReport(int $studentId): array
+    {
+        return $this->wrappee->getReport($studentId);
+    }
 }

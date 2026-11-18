@@ -17,6 +17,35 @@ namespace App\Decorators;
  */
 class CacheDecorator extends AbstractStudentReportDecorator
 {
-    // Stratégie : cache fichier ou cache mémoire (statique).
-    // TTL configurable.
+    private const TTL_SECONDS = 60;
+
+    private static array $cache = [];
+
+    private string $cacheScope;
+
+    public function __construct(StudentReportInterface $wrappee, string $cacheScope = 'default')
+    {
+        parent::__construct($wrappee);
+        $this->cacheScope = $cacheScope;
+    }
+
+    public function getReport(int $studentId): array
+    {
+        $key = $this->cacheScope . ':' . $studentId;
+        $cached = self::$cache[$key] ?? null;
+        if ($cached !== null && $cached['expires_at'] > time()) {
+            $report = $cached['report'];
+            $report['cache_hit'] = true;
+            return $report;
+        }
+
+        $report = $this->wrappee->getReport($studentId);
+        self::$cache[$key] = [
+            'expires_at' => time() + self::TTL_SECONDS,
+            'report' => $report,
+        ];
+        $report['cache_hit'] = false;
+
+        return $report;
+    }
 }

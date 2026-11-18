@@ -66,6 +66,7 @@ backend/
 │   └── database.php                  ← Paramètres PDO (SQLite / MySQL, variables d'env)
 ├── database/
 │   ├── schema.sql                    ← Script de création des tables et insertion des fixtures
+│   ├── initialize.php                ← Initialise le fichier SQLite depuis le schéma
 │   └── database.sqlite               ← Fichier SQLite (généré, ignoré par git en prod)
 ├── cache/                            ← Stockage fichier du CacheDecorator (.gitignore + .gitkeep)
 ├── logs/                             ← Fichiers de log du LoggingDecorator (.gitignore + .gitkeep)
@@ -126,8 +127,11 @@ Le frontend utilise actuellement des données simulées pour permettre de tester
 ```bash
 cd backend
 composer install
+composer db:init
 php -S localhost:8000 -t public
 ```
+
+`composer db:init` crée les tables `promotions`, `students`, `courses` et `grades`, puis insère les quatre étudiants de démonstration et leurs notes. Le classement backend est calculé à partir des étudiants réellement présents dans la promotion.
 
 ### Frontend
 

@@ -13,5 +13,5 @@ namespace App\Decorators;
  */
 interface StudentReportInterface
 {
-    // public function getReport(int $studentId): array;
+    public function getReport(int $studentId): array;
 }

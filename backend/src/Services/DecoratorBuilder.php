@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Decorators\CacheDecorator;
+use App\Decorators\ClassementDecorator;
+use App\Decorators\LoggingDecorator;
+use App\Decorators\MentionDecorator;
+use App\Decorators\StudentReportInterface;
+use InvalidArgumentException;
+
 /**
  * DecoratorBuilder
  *
@@ -15,6 +22,25 @@ namespace App\Services;
  */
 class DecoratorBuilder
 {
-    // build(array $decorators, StudentReportInterface $base): StudentReportInterface
-    // Itère sur $decorators et enveloppe successivement.
+    public function build(array $decorators, StudentReportInterface $base): StudentReportInterface
+    {
+        $cacheScope = implode('|', array_map(
+            static fn ($decorator): string => (string) $decorator,
+            $decorators
+        ));
+
+        foreach ($decorators as $decorator) {
+            $base = match ($decorator) {
+                'mention' => new MentionDecorator($base),
+                'classement' => new ClassementDecorator($base),
+                'cache' => new CacheDecorator($base, $cacheScope),
+                'logging' => new LoggingDecorator($base),
+                default => throw new InvalidArgumentException(
+                    sprintf('Unknown report decorator: %s', (string) $decorator)
+                ),
+            };
+        }
+
+        return $base;
+    }
 }
