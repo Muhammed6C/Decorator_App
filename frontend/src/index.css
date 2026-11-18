@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html {
+    @apply text-slate-900;
+    font-size: 15px;
+  }
+
+  /* Scrollbar discrète dans la console de logs */
+  .console-scroll::-webkit-scrollbar {
+    width: 4px;
+  }
+  .console-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .console-scroll::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 2px;
+  }
+}

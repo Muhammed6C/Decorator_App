@@ -119,6 +119,8 @@ Le `DecoratorBuilder` construit cette pile à l'exécution en fonction des déco
 
 ## Démarrage rapide
 
+Le frontend utilise actuellement des données simulées pour permettre de tester l'interface indépendamment de l'API PHP.
+
 ### Backend
 
 ```bash
