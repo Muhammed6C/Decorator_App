@@ -2,13 +2,18 @@
 
 declare(strict_types=1);
 
-/**
- * index.php — Point d'entrée unique du backend (Front Controller)
- *
- * Charge l'autoloader Composer (ou natif PSR-4), initialise le Router
- * et dispatche toutes les requêtes HTTP entrantes vers le contrôleur
- * approprié. Ne contient aucune logique métier.
- */
+spl_autoload_register(static function (string $class): void {
+    $prefix = 'App\\';
+    if (strncmp($class, $prefix, strlen($prefix)) !== 0) {
+        return;
+    }
 
-// require_once __DIR__ . '/../vendor/autoload.php';
-// (new App\Http\Router())->dispatch();
+    $classPath = str_replace('\\', DIRECTORY_SEPARATOR, substr($class, strlen($prefix)));
+    $filePath = __DIR__ . '/../src/' . $classPath . '.php';
+
+    if (is_file($filePath)) {
+        require_once $filePath;
+    }
+});
+
+(new App\Http\Router(new App\Http\ReportController()))->dispatch();

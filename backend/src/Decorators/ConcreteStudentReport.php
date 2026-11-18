@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace App\Decorators;
 
 use App\Database\DatabaseConnection;
+use OutOfBoundsException;
 use PDO;
-use RuntimeException;
 
 /**
  * ConcreteStudentReport (Composant Concret)
  *
  * Implémentation de base de StudentReportInterface.
  * Responsable uniquement de la récupération des notes brutes
- * depuis la base de données via PDO, avec une latence simulée.
+ * depuis la base de données via PDO.
  * N'applique aucune transformation ni enrichissement des données.
  */
 class ConcreteStudentReport implements StudentReportInterface
@@ -37,7 +37,7 @@ class ConcreteStudentReport implements StudentReportInterface
         $student = $studentQuery->fetch();
 
         if ($student === false) {
-            throw new RuntimeException(sprintf('Student %d was not found.', $studentId));
+            throw new OutOfBoundsException(sprintf('Student %d was not found.', $studentId));
         }
 
         $gradeQuery = $this->connection->prepare(

@@ -24,7 +24,7 @@ const DECORATOR_ITEMS: {
   {
     key: 'cache',
     label: 'Mise en Cache',
-    description: 'Mémorisation du résultat en mémoire',
+    description: 'Mémorisation temporaire du résultat',
     Icon: Database,
   },
   {
@@ -75,6 +75,7 @@ interface ControlPanelProps {
   onDecoratorToggle: (key: DecoratorKey) => void
   onSubmit: () => void
   isLoading: boolean
+  isLoadingStudents: boolean
 }
 
 // ─── Composant principal ───────────────────────────────────────────────────
@@ -87,6 +88,7 @@ export default function ControlPanel({
   onDecoratorToggle,
   onSubmit,
   isLoading,
+  isLoadingStudents,
 }: ControlPanelProps) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
@@ -109,7 +111,7 @@ export default function ControlPanel({
             <select
               id="student"
               value={selectedStudentId}
-              disabled={isLoading}
+              disabled={isLoading || isLoadingStudents || students.length === 0}
               onChange={e => onStudentChange(Number(e.target.value))}
               className="
                 w-full appearance-none bg-white border border-slate-200 rounded-lg
@@ -119,6 +121,11 @@ export default function ControlPanel({
                 disabled:cursor-not-allowed disabled:bg-slate-50
               "
             >
+              {students.length === 0 && (
+                <option value={0}>
+                  {isLoadingStudents ? 'Chargement…' : 'Aucun étudiant disponible'}
+                </option>
+              )}
               {students.map(s => (
                 <option key={s.id} value={s.id}>
                   {s.prenom} {s.nom}
@@ -169,8 +176,9 @@ export default function ControlPanel({
 
         {/* Bouton principal */}
         <button
+          type="button"
           onClick={onSubmit}
-          disabled={isLoading}
+          disabled={isLoading || isLoadingStudents || students.length === 0}
           className="
             w-full flex items-center justify-center gap-2
             bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400
@@ -181,10 +189,10 @@ export default function ControlPanel({
             disabled:cursor-not-allowed
           "
         >
-          {isLoading ? (
+          {isLoading || isLoadingStudents ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Exécution en cours…
+              {isLoading ? 'Exécution en cours…' : 'Chargement des étudiants…'}
             </>
           ) : (
             <>

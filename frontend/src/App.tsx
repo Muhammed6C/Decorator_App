@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Clock, FileText, GraduationCap, Layers } from 'lucide-react'
+import { Clock, FileText, GraduationCap, Layers, RefreshCw } from 'lucide-react'
 import { useReportState } from './hooks/useReportState'
 import { ReportData } from './types'
 import ControlPanel from './components/ControlPanel/ControlPanel'
@@ -64,10 +64,47 @@ function MetricsBar({ data }: { data: ReportData }) {
 // État vide — avant la première requête
 // ─────────────────────────────────────────────────────────────────────────────
 
-function EmptyState({ isLoading }: { isLoading: boolean }) {
+function EmptyState({
+  isLoading,
+  isLoadingStudents,
+  error,
+  onRetry,
+}: {
+  isLoading: boolean
+  isLoadingStudents: boolean
+  error: string | null
+  onRetry?: () => void
+}) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col items-center justify-center py-20 text-center">
-      {isLoading ? (
+      {error ? (
+        <>
+          <FileText className="h-10 w-10 text-red-300 mb-4" />
+          <p role="alert" className="text-sm font-medium text-red-700">{error}</p>
+          <p className="text-xs text-slate-400 mt-1">
+            Vérifiez que le backend PHP et la base SQLite sont disponibles.
+          </p>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              disabled={isLoadingStudents}
+              className="mt-4 inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoadingStudents ? 'animate-spin' : ''}`} />
+              Réessayer la connexion
+            </button>
+          )}
+        </>
+      ) : isLoadingStudents ? (
+        <>
+          <div className="relative mb-5">
+            <div className="h-10 w-10 rounded-full border-2 border-slate-100 border-t-indigo-500 animate-spin" />
+          </div>
+          <p className="text-sm font-medium text-slate-600">Chargement des étudiants…</p>
+          <p className="text-xs text-slate-400 mt-1">Lecture depuis la base de données</p>
+        </>
+      ) : isLoading ? (
         <>
           <div className="relative mb-5">
             <div className="h-10 w-10 rounded-full border-2 border-slate-100 border-t-indigo-500 animate-spin" />
@@ -101,6 +138,9 @@ export default function App() {
     toggleDecorator,
     reportData,
     isLoading,
+    isLoadingStudents,
+    error,
+    retryLoadStudents,
     handleSubmit,
   } = useReportState()
 
@@ -150,6 +190,7 @@ export default function App() {
           onDecoratorToggle={toggleDecorator}
           onSubmit={handleSubmitWithReset}
           isLoading={isLoading}
+          isLoadingStudents={isLoadingStudents}
         />
 
         {/* Colonne droite — Résultats */}
@@ -166,7 +207,12 @@ export default function App() {
               )}
             </>
           ) : (
-            <EmptyState isLoading={isLoading} />
+            <EmptyState
+              isLoading={isLoading}
+              isLoadingStudents={isLoadingStudents}
+              error={error}
+              onRetry={students.length === 0 ? retryLoadStudents : undefined}
+            />
           )}
         </div>
       </main>

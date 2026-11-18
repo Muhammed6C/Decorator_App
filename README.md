@@ -74,17 +74,18 @@ backend/
     ├── Database/
     │   └── DatabaseConnection.php    ← Singleton PDO partagé dans toute l'application
     ├── Http/
-    │   ├── Router.php                ← Routeur HTTP minimaliste (GET/POST, réponses JSON, CORS)
-    │   └── ReportController.php      ← Contrôleur : reçoit la requête, orchestre le Builder, retourne JSON
+    │   ├── Router.php                ← Routes API JSON et gestion CORS
+    │   └── ReportController.php      ← Contrôleur : valide les requêtes et orchestre le Builder
     ├── Services/
-    │   └── DecoratorBuilder.php      ← Construit dynamiquement la pile de décorateurs selon la requête
+    │   ├── DecoratorBuilder.php      ← Construit dynamiquement la pile de décorateurs
+    │   └── StudentService.php        ← Récupère les étudiants depuis SQLite
     └── Decorators/                   ← Cœur du pattern — isolé dans son propre dossier
         ├── StudentReportInterface.php          ← Contrat commun (Component Interface)
-        ├── ConcreteStudentReport.php           ← Composant de base : lecture BDD + latence simulée
+        ├── ConcreteStudentReport.php           ← Composant de base : lecture des relevés SQLite
         ├── AbstractStudentReportDecorator.php  ← Décorateur abstrait : délégation au wrappee
         ├── MentionDecorator.php                ← Métier : calcul de moyenne et attribution de mention
         ├── ClassementDecorator.php             ← Métier : rang dans la promotion (requête agrégée)
-        ├── CacheDecorator.php                  ← Technique : mise en cache fichier/mémoire (TTL)
+        ├── CacheDecorator.php                  ← Technique : mise en cache JSON temporaire (TTL)
         └── LoggingDecorator.php                ← Technique : chronométrage et écriture des traces
 ```
 
@@ -120,7 +121,7 @@ Le `DecoratorBuilder` construit cette pile à l'exécution en fonction des déco
 
 ## Démarrage rapide
 
-Le frontend utilise actuellement des données simulées pour permettre de tester l'interface indépendamment de l'API PHP.
+Le frontend charge les étudiants et les relevés depuis l'API PHP, qui lit les données SQLite.
 
 ### Backend
 
@@ -131,7 +132,7 @@ composer db:init
 php -S localhost:8000 -t public
 ```
 
-`composer db:init` crée les tables `promotions`, `students`, `courses` et `grades`, puis insère les quatre étudiants de démonstration et leurs notes. Le classement backend est calculé à partir des étudiants réellement présents dans la promotion.
+`composer db:init` crée les tables `promotions`, `students`, `courses` et `grades`, puis insère les quatre étudiants de démonstration et leurs notes. L'API expose `GET /api/students` et `POST /api/report`. Le classement backend est calculé à partir des étudiants réellement présents dans la promotion.
 
 ### Frontend
 
