@@ -7,11 +7,19 @@ interface TranscriptViewProps {
   data: ReportData
 }
 
+const MENTION_FACET_POSITIONS: Record<string, string> = {
+  Passable: '0% 0%',
+  'Assez Bien': '100% 0%',
+  Bien: '0% 100%',
+  'Très Bien': '100% 100%',
+}
+
 // ─── Composant principal ───────────────────────────────────────────────────
 
 export default function TranscriptView({ data }: TranscriptViewProps) {
   const { student, grades, moyenne, mention, rang, taillePromotion, cacheHit } = data
   const hasFooter = mention !== undefined || rang !== undefined
+  const mentionFacetPosition = mention ? MENTION_FACET_POSITIONS[mention] : undefined
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
@@ -79,19 +87,35 @@ export default function TranscriptView({ data }: TranscriptViewProps) {
 
       {/* Footer — Mention + Classement */}
       {hasFooter && (
-        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between gap-4">
+        <div className="px-6 py-3 border-t border-slate-100 bg-gradient-to-r from-indigo-50/40 via-white to-emerald-50/40 flex flex-wrap items-center gap-4">
           {mention !== undefined && (
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-slate-500" />
-              <span className="text-xs text-slate-500">Mention</span>
-              <span className="text-sm font-semibold text-slate-900">
-                {mention}
-              </span>
+            <div className="flex min-w-0 items-center gap-3">
+              {mentionFacetPosition && (
+                <div
+                  role="img"
+                  aria-label={`Personnage souriant, facette « ${mention} »`}
+                  className="h-20 w-20 flex-shrink-0 rounded-2xl border border-white bg-slate-50 shadow-sm ring-1 ring-indigo-100"
+                  style={{
+                    backgroundImage: "url('/images/student-mention-facets.png')",
+                    backgroundPosition: mentionFacetPosition,
+                    backgroundSize: '201% 201%',
+                  }}
+                />
+              )}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-indigo-500" />
+                  <span className="text-xs text-slate-500">Mention</span>
+                </div>
+                <span className="mt-0.5 block text-sm font-semibold text-slate-900">
+                  {mention}
+                </span>
+              </div>
             </div>
           )}
 
           {rang !== undefined && taillePromotion !== undefined && (
-            <div className="flex items-center gap-2 ml-auto">
+            <div className="ml-auto flex flex-shrink-0 items-center gap-2">
               <Medal className="h-4 w-4 text-slate-400" />
               <span className="text-xs text-slate-500">Rang promotion</span>
               <span className="font-mono text-sm font-semibold text-slate-900">
