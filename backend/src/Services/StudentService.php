@@ -7,32 +7,55 @@ namespace App\Services;
 use App\Database\DatabaseConnection;
 use PDO;
 
-class StudentService
+/**
+ * Classe StudentService
+ *
+ * Role : Service metier pour l'acces aux donnees des etudiants.
+ *
+ * Ce service offre des methodes utilitaires simples utilisees notamment par
+ * l'interface utilisateur frontend pour alimenter la liste deroulante
+ * des etudiants disponibles sans declencher la chaine lourde des decorateurs.
+ */
+final class StudentService
 {
-    private PDO $connection;
+    /**
+     * Instance de connexion a la base de donnees.
+     */
+    private PDO $pdo;
 
-    public function __construct(?PDO $connection = null)
+    /**
+     * Constructeur du service des etudiants.
+     *
+     * @param PDO|null $pdo Connexion PDO facultative (recupere le Singleton DatabaseConnection par defaut)
+     */
+    public function __construct(?PDO $pdo = null)
     {
-        $this->connection = $connection ?? DatabaseConnection::getInstance()->getConnection();
+        $this->pdo = $pdo ?? DatabaseConnection::getInstance();
     }
 
-    public function getAll(): array
+    /**
+     * Retourne la liste complete des etudiants accompagnes du nom de leur promotion.
+     *
+     * @return list<array{id: int, name: string, promotion: string}> Liste ordonnee des etudiants
+     */
+    public function listStudents(): array
     {
-        $query = $this->connection->query(
-            'SELECT s.id, s.nom, s.prenom, p.nom AS promotion, p.annee
+        $requete = $this->pdo->query(
+            'SELECT s.id, s.name, p.name AS promotion
              FROM students s
-             INNER JOIN promotions p ON p.id = s.promotion_id
+             JOIN promotions p ON p.id = s.promotion_id
              ORDER BY s.id'
         );
 
+        $lignes = $requete->fetchAll();
+
         return array_map(
-            static fn (array $student): array => [
-                'id' => (int) $student['id'],
-                'nom' => $student['nom'],
-                'prenom' => $student['prenom'],
-                'promotion' => sprintf('%s — %d', $student['promotion'], $student['annee']),
+            static fn (array $ligne): array => [
+                'id' => (int) $ligne['id'],
+                'name' => (string) $ligne['name'],
+                'promotion' => (string) $ligne['promotion'],
             ],
-            $query->fetchAll()
+            $lignes
         );
     }
 }

@@ -7,80 +7,110 @@ namespace App\Database;
 use PDO;
 
 /**
- * DatabaseConnection
+ * Classe DatabaseConnection
  *
- * Singleton responsable de l'instanciation et du partage
- * de la connexion PDO unique à l'application.
- * Charge les paramètres depuis /config/database.php.
- * Supporte SQLite (développement) et MySQL (production).
+ * Role : Singleton responsable de la gestion et du partage de l'instance de connexion PDO.
+ *
+ * Cette classe assure qu'une seule et unique connexion a la base de donnees est ouverte
+ * et partagee tout au long du cycle de vie de la requete.
+ * Elle supporte a la fois SQLite (environnement de developpement rapide et tests)
+ * et MySQL (deploiement en production ou base distante).
+ *
+ * Fonctionnalite speciale pour les tests :
+ * La methode setInstance(?PDO $pdo) permet d'injecter une connexion factice ou en memoire
+ * ('sqlite::memory:'), facilitant les tests d'integration sans toucher aux fichiers physiques.
  */
-class DatabaseConnection
+final class DatabaseConnection
 {
-    private static ?self $instance = null;
+    /**
+     * Instance unique de connexion PDO (Singleton).
+     */
+    private static ?PDO $instance = null;
 
-    private PDO $connection;
-
-    private function __clone()
-    {
-    }
-
+    /**
+     * Constructeur prive pour interdire toute instanciation directe depuis l'exterieur.
+     */
     private function __construct()
     {
-        $config = require __DIR__ . '/../../config/database.php';
-        $driver = $config['driver'] ?? null;
-        $options = [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ];
-
-        if ($driver === 'sqlite') {
-            $path = $config['sqlite']['path'] ?? null;
-            if (!is_string($path) || $path === '') {
-                throw new \RuntimeException('A valid SQLite database path is required.');
-            }
-
-            $directory = dirname($path);
-            if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
-                throw new \RuntimeException(sprintf('Unable to create SQLite directory: %s', $directory));
-            }
-
-            $this->connection = new PDO('sqlite:' . $path, null, null, $options);
-            $this->connection->exec('PRAGMA foreign_keys = ON');
-            return;
-        }
-
-        if ($driver === 'mysql') {
-            $mysql = $config['mysql'] ?? [];
-            $dsn = sprintf(
-                'mysql:host=%s;port=%s;dbname=%s;charset=%s',
-                $mysql['host'] ?? 'localhost',
-                $mysql['port'] ?? '3306',
-                $mysql['dbname'] ?? '',
-                $mysql['charset'] ?? 'utf8mb4'
-            );
-            $this->connection = new PDO(
-                $dsn,
-                $mysql['user'] ?? '',
-                $mysql['pass'] ?? '',
-                $options + [PDO::ATTR_EMULATE_PREPARES => false]
-            );
-            return;
-        }
-
-        throw new \RuntimeException(sprintf('Unsupported database driver: %s', (string) $driver));
     }
 
-    public static function getInstance(): self
+    /**
+     * Point d'entree unique pour recuperer l'instance PDO partagee.
+     * Si l'instance n'existe pas encore, elle est initialisee a partir de la configuration.
+     *
+     * @return PDO L'instance PDO partagee
+     */
+    public static function getInstance(): PDO
     {
         if (self::$instance === null) {
-            self::$instance = new self();
+            self::$instance = self::creer(self::config());
         }
 
         return self::$instance;
     }
 
-    public function getConnection(): PDO
+    /**
+     * Permet de definir manuellement l'instance PDO (utile pour les suites de tests automatisés).
+     *
+     * @param PDO|null $pdo Instance de test a injecter, ou null pour reinitialiser
+     */
+    public static function setInstance(?PDO $pdo): void
     {
-        return $this->connection;
+        self::$instance = $pdo;
+    }
+
+    /**
+     * Charge et retourne le tableau de configuration de la base de donnees.
+     *
+     * @return array<string, mixed> Configuration definie dans config/database.php
+     */
+    public static function config(): array
+    {
+        /** @var array<string, mixed> $config */
+        $config = require __DIR__ . '/../../config/database.php';
+
+        return $config;
+    }
+
+    /**
+     * Cree et configure l'instance PDO en fonction du pilote selectionne ('sqlite' ou 'mysql').
+     *
+     * @param array<string, mixed> $config Configuration de la base de donnees
+     * @return PDO Instance PDO configuree avec gestion stricte des erreurs et modes de fetch
+     *
+     * @throws \RuntimeException Si la base SQLite est introuvable ou si le pilote n'est pas supporte
+     */
+    private static function creer(array $config): PDO
+    {
+        $driver = $config['driver'] ?? 'sqlite';
+
+        if ($driver === 'mysql') {
+            /** @var array{host: string, port: string, database: string, username: string, password: string, charset: string} $m */
+            $m = $config['mysql'];
+            $dsn = sprintf(
+                'mysql:host=%s;port=%s;dbname=%s;charset=%s',
+                $m['host'],
+                $m['port'],
+                $m['database'],
+                $m['charset']
+            );
+            $pdo = new PDO($dsn, $m['username'], $m['password']);
+        } else {
+            $chemin = (string) ($config['sqlite']['path'] ?? '');
+            if (!is_file($chemin)) {
+                throw new \RuntimeException(
+                    "Base SQLite introuvable au chemin '$chemin'. Veuillez executer : php database/initialize.php"
+                );
+            }
+            $pdo = new PDO('sqlite:' . $chemin);
+            // Activation stricte de l'integrite des cles etrangeres sous SQLite
+            $pdo->exec('PRAGMA foreign_keys = ON');
+        }
+
+        // Configuration standard pour des exceptions sur erreurs et des tableaux associatifs
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+
+        return $pdo;
     }
 }

@@ -4,133 +4,139 @@ declare(strict_types=1);
 
 namespace App\Decorators;
 
-use App\Services\ExecutionLog;
-
 /**
- * CacheDecorator (Décorateur Technique n°3)
+ * Classe CacheDecorator
  *
- * Étend AbstractStudentReportDecorator.
- * Avant de déléguer au composant décoré, vérifie si une entrée
- * de cache valide existe pour l'identifiant étudiant donné
- * (fichier JSON dans /cache avec une durée de vie limitée).
- * En cas de cache hit, retourne immédiatement sans appel BDD.
- * En cas de cache miss, stocke le résultat après récupération.
- * Ajoute la clé 'cache_hit' (bool) au tableau de résultats.
+ * Role dans le Design Pattern Decorateur : Concrete Decorator (Decorateur Concret Technique).
+ *
+ * Ce decorateur illustre parfaitement l'interception transparente dans le pattern Decorateur :
+ * - Si le resultat est deja en cache et non expire (HIT) : il est immediatement retourne SANS appeler
+ *   le composant sous-jacent (court-circuit / bypass). Cela permet d'eviter l'acces base de donnees et
+ *   les calculs lourds.
+ * - Si le resultat n'est pas en cache ou est expire (MISS) : il delegue l'appel au wrappee via parent::getReport(),
+ *   sauvegarde le resultat dans un fichier JSON, puis le retourne.
+ *
+ * Conception de la cle de cache :
+ * La cle est composee de : studentId + '|' + variant.
+ * La 'variant' represente la combinaison ordonnee des decorateurs metier actifs situes SOUS ce cache.
+ * Ainsi, changer la selection de l'utilisateur (par exemple activer Mention sans Classement) produit
+ * une cle distincte et empeche tout retour de donnees perimees ou incompletes.
+ *
+ * Nettoyage des donnees volatiles :
+ * Les donnees ephemeres liees a la requete courante ('logs' et 'cache') ne sont jamais persistees sur disque.
  */
-class CacheDecorator extends AbstractStudentReportDecorator
+final class CacheDecorator extends AbstractStudentReportDecorator
 {
-    private const TTL_SECONDS = 60;
+    /**
+     * Cles volatiles propres a l'appel en cours qui ne doivent pas etre figees dans le cache disque.
+     */
+    private const VOLATILE_KEYS = ['logs' => true, 'cache' => true];
 
-    private string $cacheScope;
-
-    private string $cacheDirectory;
-
-    public function __construct(StudentReportInterface $wrappee, string $cacheScope = 'default')
-    {
+    /**
+     * Constructeur du decorateur de cache.
+     *
+     * @param StudentReportInterface $wrappee Composant enveloppe
+     * @param string $directory Dossier dans lequel ecrire les fichiers de cache
+     * @param int $ttlSeconds Duree de vie du cache en secondes (TTL : Time To Live)
+     * @param string $variant Chaine identifiant la configuration des decorateurs internes
+     */
+    public function __construct(
+        StudentReportInterface $wrappee,
+        private readonly string $directory,
+        private readonly int $ttlSeconds,
+        private readonly string $variant
+    ) {
         parent::__construct($wrappee);
-        $this->cacheScope = $cacheScope;
-        $this->cacheDirectory = __DIR__ . '/../../cache';
     }
 
+    /**
+     * Intercepte l'appel : sert la reponse depuis le cache en cas de HIT, ou delegue et persiste en cas de MISS.
+     *
+     * @param int $studentId Identifiant de l'etudiant
+     * @return array<string, mixed> Releve enrichi avec les metadonnees de cache { status: "HIT" | "MISS", key: string }
+     */
     public function getReport(int $studentId): array
     {
-        $cachePath = $this->getCachePath($studentId);
-        $cachedReport = $this->readCache($cachePath);
-        if ($cachedReport !== null) {
-            $report = ExecutionLog::append(
-                $cachedReport,
-                'hit',
-                sprintf(
-                    'CacheDecorator → résultat trouvé pour l’étudiant #%d; accès SQLite évité.',
-                    $studentId
-                )
-            );
-            $report['cache_hit'] = true;
+        // Construction de la cle logique et calcul de l'empreinte sha1 pour le nom de fichier
+        $cle = $studentId . '|' . $this->variant;
+        $fichier = $this->directory . DIRECTORY_SEPARATOR . 'report_' . sha1($cle) . '.json';
+
+        // 1. Verification de l'existence et de la validite du cache (HIT)
+        $contenu = is_file($fichier) ? json_decode((string) file_get_contents($fichier), true) : null;
+        if (
+            is_array($contenu)
+            && ($contenu['expiresAt'] ?? 0) > time()
+            && is_array($contenu['payload'] ?? null)
+        ) {
+            /** @var array<string, mixed> $report */
+            $report = $contenu['payload'];
+            // Enrichissement avec les informations de statut de cache HIT
+            $report['cache'] = [
+                'status' => 'HIT',
+                'key' => $cle,
+            ];
+
             return $report;
         }
 
-        $cacheMiss = ExecutionLog::createEntry(
-            'miss',
-            sprintf('CacheDecorator → aucun résultat valide pour l’étudiant #%d; délégation en cours.', $studentId)
-        );
-        $report = $this->wrappee->getReport($studentId);
-        $report['logs'] = array_merge([$cacheMiss], $report['logs'] ?? []);
-        $report['cache_hit'] = false;
-        $report = ExecutionLog::append(
-            $report,
-            'stored',
-            sprintf('CacheDecorator → résultat enregistré en cache JSON (TTL : %d s).', self::TTL_SECONDS)
-        );
-        $this->writeCache($cachePath, $report);
+        // 2. En cas d'absence ou d'expiration du cache (MISS) : delegation a la chaine sous-jacente
+        $report = parent::getReport($studentId);
+
+        // Sauvegarde sur disque de la charge utile (en filtrant les attributs volatils comme logs)
+        $this->ecrire($fichier, array_diff_key($report, self::VOLATILE_KEYS));
+
+        // Enrichissement avec les informations de statut de cache MISS
+        $report['cache'] = [
+            'status' => 'MISS',
+            'key' => $cle,
+        ];
 
         return $report;
     }
 
-    private function getCachePath(int $studentId): string
+    /**
+     * Supprime tous les fichiers de cache generes dans le dossier specifie.
+     *
+     * @param string $directory Dossier de cache a purger
+     * @return int Nombre de fichiers supprimes avec succes
+     */
+    public static function purge(string $directory): int
     {
-        $scopeHash = hash('sha256', $this->cacheScope);
-        return sprintf('%s/report_%d_%s.json', $this->cacheDirectory, $studentId, $scopeHash);
-    }
+        $supprimes = 0;
+        $fichiers = glob($directory . DIRECTORY_SEPARATOR . 'report_*.json') ?: [];
 
-    private function readCache(string $cachePath): ?array
-    {
-        if (!is_file($cachePath)) {
-            return null;
-        }
-
-        $contents = file_get_contents($cachePath);
-        if ($contents === false) {
-            throw new \RuntimeException(sprintf('Unable to read cache file: %s', $cachePath));
-        }
-
-        $entry = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
-        if (
-            !is_array($entry)
-            || !isset($entry['expires_at'], $entry['report'])
-            || !is_int($entry['expires_at'])
-            || !is_array($entry['report'])
-        ) {
-            throw new \RuntimeException(sprintf('Invalid cache entry: %s', $cachePath));
-        }
-
-        if ($entry['expires_at'] <= time()) {
-            if (!unlink($cachePath) && is_file($cachePath)) {
-                throw new \RuntimeException(sprintf('Unable to remove expired cache file: %s', $cachePath));
+        foreach ($fichiers as $fichier) {
+            if (is_file($fichier) && unlink($fichier)) {
+                $supprimes++;
             }
-            return null;
         }
 
-        return $entry['report'];
+        return $supprimes;
     }
 
-    private function writeCache(string $cachePath, array $report): void
+    /**
+     * Ecrit de maniere securisee la charge utile et la date d'expiration dans le fichier de cache.
+     *
+     * @param string $fichier Chemin complet du fichier cible
+     * @param array<string, mixed> $payload Donnees du releve a mettre en cache
+     */
+    private function ecrire(string $fichier, array $payload): void
     {
-        if (!is_dir($this->cacheDirectory)
-            && !mkdir($this->cacheDirectory, 0775, true)
-            && !is_dir($this->cacheDirectory)
-        ) {
-            throw new \RuntimeException(sprintf('Unable to create cache directory: %s', $this->cacheDirectory));
+        // Creation du dossier de cache si necessaire
+        if (!is_dir($this->directory) && !mkdir($this->directory, 0777, true) && !is_dir($this->directory)) {
+            // Si le dossier ne peut etre cree, on abandonne l'ecriture sans interrompre la reponse
+            return;
         }
 
-        unset($report['logs'], $report['execution_time_ms']);
-        $contents = json_encode([
-            'expires_at' => time() + self::TTL_SECONDS,
-            'report' => $report,
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        $donneesCache = [
+            'expiresAt' => time() + $this->ttlSeconds,
+            'payload' => $payload,
+        ];
 
-        $temporaryPath = tempnam($this->cacheDirectory, '.report-cache-');
-        if ($temporaryPath === false) {
-            throw new \RuntimeException(sprintf('Unable to create cache file in: %s', $this->cacheDirectory));
-        }
-
-        if (file_put_contents($temporaryPath, $contents, LOCK_EX) === false) {
-            unlink($temporaryPath);
-            throw new \RuntimeException(sprintf('Unable to write cache file: %s', $temporaryPath));
-        }
-
-        if (!rename($temporaryPath, $cachePath)) {
-            unlink($temporaryPath);
-            throw new \RuntimeException(sprintf('Unable to publish cache file: %s', $cachePath));
-        }
+        file_put_contents(
+            $fichier,
+            json_encode($donneesCache, JSON_UNESCAPED_UNICODE),
+            LOCK_EX
+        );
     }
 }

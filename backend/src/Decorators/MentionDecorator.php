@@ -4,55 +4,98 @@ declare(strict_types=1);
 
 namespace App\Decorators;
 
-use App\Services\ExecutionLog;
-
 /**
- * MentionDecorator (Décorateur Métier n°1)
+ * Classe MentionDecorator
  *
- * Étend AbstractStudentReportDecorator.
- * Après avoir récupéré les données du composant décoré, calcule
- * la moyenne générale à partir des notes brutes et détermine
- * la mention correspondante (Très Bien, Bien, Assez Bien, Passable).
- * Ajoute les clés 'moyenne' et 'mention' au tableau de résultats.
+ * Role dans le Design Pattern Decorateur : Concrete Decorator (Decorateur Concret Metier).
+ *
+ * Ce decorateur etend AbstractStudentReportDecorator pour enrichir le releve
+ * avec les metriques academiques fondamentales :
+ * - Le calcul de la moyenne generale ponderee en fonction des coefficients des matieres.
+ * - L'attribution d'une mention standardisee selon l'echelle universitaire francaise.
+ *
+ * Propriete importante : Ce decorateur est totalement autonome. Il ne depend d'aucun autre
+ * decorateur et opere uniquement sur les notes brutes fournies par l'objet interne.
  */
-class MentionDecorator extends AbstractStudentReportDecorator
+final class MentionDecorator extends AbstractStudentReportDecorator
 {
-    public function getReport(int $studentId): array
+    /**
+     * Calcule la moyenne ponderee d'une liste de notes en tenant compte de leurs coefficients.
+     *
+     * Formule : Somme(note * coefficient) / Somme(coefficients)
+     *
+     * @param list<array{coefficient: int, value: float}> $notes Liste des notes et coefficients
+     * @return float Moyenne arrondie a deux decimales
+     */
+    public static function weightedAverage(array $notes): float
     {
-        $report = $this->wrappee->getReport($studentId);
-        $grades = $report['grades'];
-        $totalCoefficient = array_sum(array_column($grades, 'coefficient'));
+        $totalPondere = 0.0;
+        $totalCoefficients = 0;
 
-        if ($totalCoefficient <= 0) {
-            throw new \RuntimeException(sprintf('Student %d has no graded courses.', $studentId));
+        foreach ($notes as $note) {
+            $coefficient = $note['coefficient'];
+            $valeur = $note['value'];
+
+            $totalPondere += $valeur * $coefficient;
+            $totalCoefficients += $coefficient;
         }
 
-        $weightedTotal = array_sum(array_map(
-            static fn (array $grade): float => $grade['note'] * $grade['coefficient'],
-            $grades
-        ));
-        $average = round($weightedTotal / $totalCoefficient, 2);
+        // Si aucun coefficient n'est present, retourne 0.0 pour eviter une division par zero
+        if ($totalCoefficients === 0) {
+            return 0.0;
+        }
 
-        $mention = match (true) {
-            $average >= 16 => 'Très Bien',
-            $average >= 14 => 'Bien',
-            $average >= 12 => 'Assez Bien',
-            $average >= 10 => 'Passable',
-            default => 'Insuffisant',
+        return round($totalPondere / $totalCoefficients, 2);
+    }
+
+    /**
+     * Determine la mention academique attribuee selon le bareme officiel.
+     *
+     * Bareme :
+     * - Moyenne >= 16 : Tres bien (TB)
+     * - Moyenne >= 14 : Bien (B)
+     * - Moyenne >= 12 : Assez bien (AB)
+     * - Moyenne >= 10 : Passable (P)
+     * - Moyenne < 10  : Non valide (NV)
+     *
+     * @param float $moyenne Moyenne generale sur 20
+     * @return array{code: string, label: string} Code abrege et libelle de la mention
+     */
+    public static function mentionFor(float $moyenne): array
+    {
+        return match (true) {
+            $moyenne >= 16.0 => ['code' => 'TB', 'label' => 'Tres bien'],
+            $moyenne >= 14.0 => ['code' => 'B', 'label' => 'Bien'],
+            $moyenne >= 12.0 => ['code' => 'AB', 'label' => 'Assez bien'],
+            $moyenne >= 10.0 => ['code' => 'P', 'label' => 'Passable'],
+            default => ['code' => 'NV', 'label' => 'Non valide'],
         };
-        $report['moyenne'] = $average;
+    }
+
+    /**
+     * Intercepte l'appel getReport, delegue a l'objet enveloppe, puis greffe
+     * la moyenne ponderee et la mention avant de retourner le tableau enrichi.
+     *
+     * @param int $studentId Identifiant de l'etudiant
+     * @return array<string, mixed> Releve contenant desormais 'average' et 'mention'
+     */
+    public function getReport(int $studentId): array
+    {
+        // 1. Delegation a l'element sous-jacent (composant de base ou autre decorateur)
+        $report = parent::getReport($studentId);
+
+        // 2. Traitement metier specifique : calcul de la moyenne a partir des notes
+        /** @var list<array{coefficient: int, value: float}> $grades */
+        $grades = $report['grades'] ?? [];
+        $moyenne = self::weightedAverage($grades);
+
+        // 3. Attribution de la mention correspondante
+        $mention = self::mentionFor($moyenne);
+
+        // 4. Enrichissement du releve avec les nouvelles proprietes
+        $report['average'] = $moyenne;
         $report['mention'] = $mention;
 
-        $report = ExecutionLog::append(
-            $report,
-            'info',
-            sprintf('MentionDecorator → moyenne pondérée calculée sur %d notes.', count($grades))
-        );
-
-        return ExecutionLog::append(
-            $report,
-            'info',
-            sprintf('MentionDecorator → moyenne = %.2f/20, mention « %s ».', $average, $mention)
-        );
+        return $report;
     }
 }

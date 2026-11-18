@@ -1,0 +1,6 @@
+/vendor/
+/database/database.sqlite
+/cache/*
+/logs/*
+!/cache/.gitkeep
+!/logs/.gitkeep

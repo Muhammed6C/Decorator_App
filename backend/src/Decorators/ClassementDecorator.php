@@ -5,80 +5,94 @@ declare(strict_types=1);
 namespace App\Decorators;
 
 use App\Database\DatabaseConnection;
-use App\Services\ExecutionLog;
 use PDO;
-use RuntimeException;
 
 /**
- * ClassementDecorator (Décorateur Métier n°2)
+ * Classe ClassementDecorator
  *
- * Étend AbstractStudentReportDecorator.
- * Compare la moyenne de l'étudiant avec celle de l'ensemble
- * de sa promotion (requête agrégée en BDD) pour calculer et
- * injecter son rang dans le tableau de résultats.
- * Ajoute les clés 'rang' et 'taille_promotion'.
+ * Role dans le Design Pattern Decorateur : Concrete Decorator (Decorateur Concret Metier).
+ *
+ * Ce decorateur etend AbstractStudentReportDecorator pour calculer et ajouter au releve :
+ * - Le rang (classement) de l'etudiant parmi l'ensemble des etudiants de sa promotion.
+ * - L'effectif total de la promotion (classSize).
+ *
+ * Particularite technique essentielle :
+ * Afin de respecter le principe de responsabilite unique et l'independance absolue
+ * des decorateurs, ce decorateur n'a AUCUNE dependance envers MentionDecorator.
+ * Il execute lui-meme une requete SQL agregee sur la base de donnees pour calculer
+ * les moyennes comparatives de tous les pairs de la promotion.
+ * Ainsi, ClassementDecorator fonctionne aussi bien seul qu'empile avant ou apres MentionDecorator.
  */
-class ClassementDecorator extends AbstractStudentReportDecorator
+final class ClassementDecorator extends AbstractStudentReportDecorator
 {
-    private PDO $connection;
+    /**
+     * Instance PDO pour interroger la base lors du calcul des rangs de la promotion.
+     */
+    private PDO $pdo;
 
-    public function __construct(StudentReportInterface $wrappee, ?PDO $connection = null)
-    {
+    /**
+     * Constructeur du decorateur de classement.
+     *
+     * @param StudentReportInterface $wrappee Composant enveloppe
+     * @param PDO|null $pdo Connexion PDO facultative (si null, le Singleton DatabaseConnection est utilise)
+     */
+    public function __construct(
+        StudentReportInterface $wrappee,
+        ?PDO $pdo = null
+    ) {
         parent::__construct($wrappee);
-        $this->connection = $connection ?? DatabaseConnection::getInstance()->getConnection();
+        $this->pdo = $pdo ?? DatabaseConnection::getInstance();
     }
 
+    /**
+     * Recupere le releve du wrappee, determine le rang de l'etudiant et injecte 'rank' et 'classSize'.
+     *
+     * @param int $studentId Identifiant de l'etudiant
+     * @return array<string, mixed> Releve enrichi du rang et de la taille de classe
+     *
+     * @throws \OutOfBoundsException Si l'etudiant n'a aucune note ou n'appartient a aucune promotion
+     */
     public function getReport(int $studentId): array
     {
-        $report = $this->wrappee->getReport($studentId);
-        $query = $this->connection->prepare(
-            'SELECT s.id AS student_id,
-                    SUM(g.note * c.coefficient) / SUM(c.coefficient) AS moyenne
+        // 1. Appel du wrappee pour obtenir le releve sous-jacent
+        $report = parent::getReport($studentId);
+
+        // 2. Requete SQL pour calculer la moyenne ponderee de chaque etudiant de la meme promotion.
+        // Utilisation de SUM(g.value * c.coefficient) * 1.0 / SUM(c.coefficient) pour obtenir une division reelle.
+        $requetePromotion = $this->pdo->prepare(
+            'SELECT s.id, SUM(g.value * c.coefficient) * 1.0 / SUM(c.coefficient) AS average
              FROM students s
-             INNER JOIN grades g ON g.student_id = s.id
-             INNER JOIN courses c ON c.id = g.course_id
-             WHERE s.promotion_id = (
-                 SELECT promotion_id FROM students WHERE id = :student_id
-             )
-             GROUP BY s.id
-             ORDER BY moyenne DESC'
+             JOIN grades g ON g.student_id = s.id
+             JOIN courses c ON c.id = g.course_id
+             WHERE s.promotion_id = (SELECT promotion_id FROM students WHERE id = :id)
+             GROUP BY s.id'
         );
-        $query->execute(['student_id' => $studentId]);
-        $averages = $query->fetchAll();
+        $requetePromotion->execute(['id' => $studentId]);
 
-        $targetAverage = null;
-        foreach ($averages as $row) {
-            if ((int) $row['student_id'] === $studentId) {
-                $targetAverage = (float) $row['moyenne'];
-                break;
+        // 3. Collecte des moyennes de chaque etudiant de la promotion
+        $moyennes = [];
+        foreach ($requetePromotion->fetchAll() as $ligne) {
+            $moyennes[(int) $ligne['id']] = round((float) $ligne['average'], 2);
+        }
+
+        // Verifier que l'etudiant cible a bien une moyenne calculee
+        $maMoyenne = $moyennes[$studentId] ?? null;
+        if ($maMoyenne === null) {
+            throw new \OutOfBoundsException("Aucune note trouvee pour calculer le rang de l'etudiant : $studentId");
+        }
+
+        // 4. Calcul du rang : nombre d'etudiants ayant une moyenne strictement superieure + 1
+        $rang = 1;
+        foreach ($moyennes as $moyenneAutre) {
+            if ($moyenneAutre > $maMoyenne) {
+                $rang++;
             }
         }
 
-        if ($targetAverage === null) {
-            throw new RuntimeException(sprintf('Student %d has no grades to rank.', $studentId));
-        }
+        // 5. Ajout des donnees de classement dans le releve
+        $report['rank'] = $rang;
+        $report['classSize'] = count($moyennes);
 
-        $report['rang'] = 1;
-        foreach ($averages as $row) {
-            if ((float) $row['moyenne'] > $targetAverage) {
-                $report['rang']++;
-            }
-        }
-        $report['taille_promotion'] = count($averages);
-
-        $report = ExecutionLog::append(
-            $report,
-            'info',
-            sprintf(
-                'ClassementDecorator → comparaison des moyennes de %d étudiants dans la promotion.',
-                count($averages)
-            )
-        );
-
-        return ExecutionLog::append(
-            $report,
-            'info',
-            sprintf('ClassementDecorator → rang calculé : %d/%d.', $report['rang'], $report['taille_promotion'])
-        );
+        return $report;
     }
 }

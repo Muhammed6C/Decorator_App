@@ -1,9 +1,12 @@
 {
-    "name": "decorator-app/backend",
-    "description": "Backend Vanilla PHP 8+ illustrant le Design Pattern Décorateur pour la consultation de relevés de notes.",
+    "name": "groupe/decorator-app-backend",
+    "description": "API PHP (sans framework) du projet Decorator : relevé de notes enrichi par des décorateurs",
     "type": "project",
+    "license": "proprietary",
     "require": {
-        "php": ">=8.0"
+        "php": ">=8.1",
+        "ext-json": "*",
+        "ext-pdo": "*"
     },
     "autoload": {
         "psr-4": {
@@ -11,7 +14,11 @@
         }
     },
     "scripts": {
-        "start": "php -S localhost:8000 -t public",
-        "db:init": "php database/initialize.php"
+        "db:init": "@php database/initialize.php",
+        "serve": "@php -S localhost:8000 -t public",
+        "test": "@php tests/run.php"
+    },
+    "config": {
+        "process-timeout": 0
     }
 }
