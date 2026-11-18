@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Decorators;
 
 use App\Database\DatabaseConnection;
+use App\Services\ExecutionLog;
 use OutOfBoundsException;
 use PDO;
 
@@ -58,7 +59,7 @@ class ConcreteStudentReport implements StudentReportInterface
             $gradeQuery->fetchAll()
         );
 
-        return [
+        $report = [
             'student' => [
                 'id' => (int) $student['id'],
                 'nom' => $student['nom'],
@@ -67,5 +68,16 @@ class ConcreteStudentReport implements StudentReportInterface
             ],
             'grades' => $grades,
         ];
+
+        return ExecutionLog::append(
+            $report,
+            'info',
+            sprintf(
+                'ConcreteStudentReport → %d notes récupérées depuis SQLite pour %s %s.',
+                count($grades),
+                $student['prenom'],
+                $student['nom']
+            )
+        );
     }
 }

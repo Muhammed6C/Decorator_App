@@ -80,11 +80,14 @@ class ReportController
             'rang' => 'rang',
             'taille_promotion' => 'taillePromotion',
             'cache_hit' => 'cacheHit',
-            'logs' => 'logs',
         ] as $source => $target) {
             if (array_key_exists($source, $report)) {
                 $response[$target] = $report[$source];
             }
+        }
+
+        if (in_array('logging', $decorators, true) && array_key_exists('logs', $report)) {
+            $response['logs'] = $report['logs'];
         }
 
         return $response;

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Clock, FileText, GraduationCap, Layers, RefreshCw } from 'lucide-react'
+import { Clock, FileText, GraduationCap, Heart, Layers, RefreshCw } from 'lucide-react'
 import { useReportState } from './hooks/useReportState'
 import { ReportData } from './types'
 import ControlPanel from './components/ControlPanel/ControlPanel'
@@ -165,16 +165,50 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
       {/* ── En-tête ─────────────────────────────────────────────────────── */}
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-screen-xl mx-auto px-4 sm:px-8 py-4 flex items-center gap-3">
-          <GraduationCap className="h-5 w-5 text-slate-500 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-semibold text-slate-900 leading-none">
-              Portail de Consultation des Relevés
-            </h1>
-            <p className="text-xs text-slate-400 mt-0.5 truncate">
-              Démonstration de l'empilement dynamique des couches de traitement — Design Pattern Décorateur
-            </p>
+      <header className="relative isolate overflow-hidden border-b border-indigo-100/80 bg-gradient-to-r from-white via-indigo-50/70 to-emerald-50/60 shadow-sm">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-600 via-violet-500 to-emerald-400"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-24 -top-32 h-72 w-72 rounded-full bg-indigo-200/30 blur-3xl"
+        />
+        <div className="relative mx-auto flex max-w-screen-xl items-center justify-between gap-6 px-4 py-4 sm:px-8 sm:py-5">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 text-white shadow-lg shadow-indigo-200/70 ring-1 ring-white/80">
+              <GraduationCap aria-hidden="true" className="h-7 w-7" />
+            </div>
+            <div className="min-w-0">
+              <p className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-indigo-600">
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Espace académique
+              </p>
+              <h1 className="text-lg font-semibold leading-tight tracking-tight text-slate-950 sm:text-xl">
+                Portail de consultation des relevés
+              </h1>
+              <p className="mt-1 text-xs leading-relaxed text-slate-600 sm:text-sm">
+                Un espace clair pour suivre les résultats et accompagner chaque progression.
+              </p>
+              <div className="mt-2.5 inline-flex max-w-full items-center gap-1.5 rounded-full border border-indigo-100/80 bg-white/70 px-2.5 py-1 text-[10px] font-medium text-slate-500">
+                <Layers aria-hidden="true" className="h-3 w-3 flex-shrink-0 text-indigo-400" />
+                <span className="truncate">
+                  Démonstration pédagogique <span aria-hidden="true">·</span> Design pattern Décorateur
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="hidden flex-shrink-0 items-center gap-3 rounded-2xl border border-white/80 bg-white/65 px-4 py-3 shadow-sm sm:flex">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-500">
+              <Heart aria-hidden="true" className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Un suivi bienveillant
+              </p>
+              <p className="mt-0.5 text-sm font-semibold text-slate-700">Chaque parcours compte.</p>
+            </div>
           </div>
         </div>
       </header>

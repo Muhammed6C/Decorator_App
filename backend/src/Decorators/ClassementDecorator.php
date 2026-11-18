@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Decorators;
 
 use App\Database\DatabaseConnection;
+use App\Services\ExecutionLog;
 use PDO;
 use RuntimeException;
 
@@ -65,6 +66,19 @@ class ClassementDecorator extends AbstractStudentReportDecorator
         }
         $report['taille_promotion'] = count($averages);
 
-        return $report;
+        $report = ExecutionLog::append(
+            $report,
+            'info',
+            sprintf(
+                'ClassementDecorator → comparaison des moyennes de %d étudiants dans la promotion.',
+                count($averages)
+            )
+        );
+
+        return ExecutionLog::append(
+            $report,
+            'info',
+            sprintf('ClassementDecorator → rang calculé : %d/%d.', $report['rang'], $report['taille_promotion'])
+        );
     }
 }

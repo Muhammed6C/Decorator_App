@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Decorators;
 
+use App\Services\ExecutionLog;
+
 /**
  * MentionDecorator (Décorateur Métier n°1)
  *
@@ -31,15 +33,26 @@ class MentionDecorator extends AbstractStudentReportDecorator
         ));
         $average = round($weightedTotal / $totalCoefficient, 2);
 
-        $report['moyenne'] = $average;
-        $report['mention'] = match (true) {
+        $mention = match (true) {
             $average >= 16 => 'Très Bien',
             $average >= 14 => 'Bien',
             $average >= 12 => 'Assez Bien',
             $average >= 10 => 'Passable',
             default => 'Insuffisant',
         };
+        $report['moyenne'] = $average;
+        $report['mention'] = $mention;
 
-        return $report;
+        $report = ExecutionLog::append(
+            $report,
+            'info',
+            sprintf('MentionDecorator → moyenne pondérée calculée sur %d notes.', count($grades))
+        );
+
+        return ExecutionLog::append(
+            $report,
+            'info',
+            sprintf('MentionDecorator → moyenne = %.2f/20, mention « %s ».', $average, $mention)
+        );
     }
 }

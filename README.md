@@ -78,7 +78,8 @@ backend/
     │   └── ReportController.php      ← Contrôleur : valide les requêtes et orchestre le Builder
     ├── Services/
     │   ├── DecoratorBuilder.php      ← Construit dynamiquement la pile de décorateurs
-    │   └── StudentService.php        ← Récupère les étudiants depuis SQLite
+    │   ├── StudentService.php        ← Récupère les étudiants depuis SQLite
+    │   └── ExecutionLog.php          ← Formatage et persistance des événements d'exécution
     └── Decorators/                   ← Cœur du pattern — isolé dans son propre dossier
         ├── StudentReportInterface.php          ← Contrat commun (Component Interface)
         ├── ConcreteStudentReport.php           ← Composant de base : lecture des relevés SQLite

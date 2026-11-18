@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Decorators;
 
+use App\Services\ExecutionLog;
+
 /**
  * CacheDecorator (Décorateur Technique n°3)
  *
@@ -35,14 +37,31 @@ class CacheDecorator extends AbstractStudentReportDecorator
         $cachePath = $this->getCachePath($studentId);
         $cachedReport = $this->readCache($cachePath);
         if ($cachedReport !== null) {
-            $report = $cachedReport;
+            $report = ExecutionLog::append(
+                $cachedReport,
+                'hit',
+                sprintf(
+                    'CacheDecorator → résultat trouvé pour l’étudiant #%d; accès SQLite évité.',
+                    $studentId
+                )
+            );
             $report['cache_hit'] = true;
             return $report;
         }
 
+        $cacheMiss = ExecutionLog::createEntry(
+            'miss',
+            sprintf('CacheDecorator → aucun résultat valide pour l’étudiant #%d; délégation en cours.', $studentId)
+        );
         $report = $this->wrappee->getReport($studentId);
-        $this->writeCache($cachePath, $report);
+        $report['logs'] = array_merge([$cacheMiss], $report['logs'] ?? []);
         $report['cache_hit'] = false;
+        $report = ExecutionLog::append(
+            $report,
+            'stored',
+            sprintf('CacheDecorator → résultat enregistré en cache JSON (TTL : %d s).', self::TTL_SECONDS)
+        );
+        $this->writeCache($cachePath, $report);
 
         return $report;
     }
@@ -93,6 +112,7 @@ class CacheDecorator extends AbstractStudentReportDecorator
             throw new \RuntimeException(sprintf('Unable to create cache directory: %s', $this->cacheDirectory));
         }
 
+        unset($report['logs'], $report['execution_time_ms']);
         $contents = json_encode([
             'expires_at' => time() + self::TTL_SECONDS,
             'report' => $report,
