@@ -39,10 +39,10 @@ INSERT OR IGNORE INTO promotions (id, nom, annee) VALUES
     (1, 'L3 Informatique', 2024);
 
 INSERT OR IGNORE INTO students (id, nom, prenom, promotion_id) VALUES
-    (1, 'Martin', 'Sophie', 1),
-    (2, 'Dubois', 'Julien', 1),
-    (3, 'Chen', 'Léna', 1),
-    (4, 'Rousseau', 'Antoine', 1);
+    (1, 'Ndiaye', 'Fatou', 1),
+    (2, 'Diop', 'Amadou', 1),
+    (3, 'Fall', 'Awa', 1),
+    (4, 'Sarr', 'Moussa', 1);
 
 INSERT OR IGNORE INTO courses (id, intitule, coefficient) VALUES
     (1, 'Algorithmique avancée', 4),
